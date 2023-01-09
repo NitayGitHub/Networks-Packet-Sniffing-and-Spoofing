@@ -1,10 +1,10 @@
 all: Sniffer
 
 Sniffer: Sniffer.c
-	gcc Sniffer.c -o Sniffer
+	gcc Sniffer.c -o Sniffer -lpcap
 	
 clean:
-	rm -f *.o parta watchdog partb ping
+	rm -f *.o Sniffer
 	
 runsniff:
-	./Sniffer
+	sudo ./Sniffer enp0s3

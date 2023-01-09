@@ -25,20 +25,20 @@ int main(int argc, char *argv[])
 	handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
 	if (handle == NULL)
 	{
-		fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
+		fprintf(stderr, "Couldn't open device: %s.\n", dev);
 		return (2);
 	}
 
 	// Step 2: Compile filter_exp into BPF psuedo-code
 	if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1)
 	{
-		fprintf(stderr, "Couldn't compile filter %s: %s\n", filter_exp, pcap_geterr(handle));
+		fprintf(stderr, "Couldn't compile filter: %s.\n", filter_exp);
 		return (2);
 	}
 
 	if (pcap_setfilter(handle, &fp) == -1)
 	{
-		fprintf(stderr, "Couldn't set filter %s: %s\n", filter_exp, pcap_geterr(handle));
+		fprintf(stderr, "Couldn't set filter: %s.\n", filter_exp);
 		return (2);
 	}
 
