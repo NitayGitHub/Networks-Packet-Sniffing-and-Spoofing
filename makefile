@@ -7,4 +7,4 @@ clean:
 	rm -f *.o Sniffer
 	
 runsniff:
-	sudo ./Sniffer lo
+	sudo ./Sniffer
