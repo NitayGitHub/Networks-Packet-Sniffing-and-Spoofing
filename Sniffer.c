@@ -32,54 +32,22 @@ struct ethheader
 	u_short ether_type;					/* IP? ARP? RARP? etc */
 };
 
-void PrintData(const u_char *data, int Size)
+/* IP Header */
+struct ipheader
 {
-	int i, j;
-	for (i = 0; i < Size; i++)
-	{
-		if (i != 0 && i % 16 == 0) // if one line of hex printing is complete...
-		{
-			fprintf(logfile, "         ");
-			for (j = i - 16; j < i; j++)
-			{
-				if (data[j] >= 32 && data[j] <= 128)
-					fprintf(logfile, "%c", (unsigned char)data[j]); // if its a number or alphabet
-
-				else
-					fprintf(logfile, "."); // otherwise print a dot
-			}
-			fprintf(logfile, "\n");
-		}
-
-		if (i % 16 == 0)
-			fprintf(logfile, "   ");
-		fprintf(logfile, " %02X", (unsigned int)data[i]);
-
-		if (i == Size - 1) // print the last spaces
-		{
-			for (j = 0; j < 15 - i % 16; j++)
-			{
-				fprintf(logfile, "   "); // extra spaces
-			}
-
-			fprintf(logfile, "         ");
-
-			for (j = i - i % 16; j <= i; j++)
-			{
-				if (data[j] >= 32 && data[j] <= 128)
-				{
-					fprintf(logfile, "%c", (unsigned char)data[j]);
-				}
-				else
-				{
-					fprintf(logfile, ".");
-				}
-			}
-
-			fprintf(logfile, "\n");
-		}
-	}
-}
+  unsigned char iph_ihl : 4,       // IP header length
+      iph_ver : 4;                 // IP version
+  unsigned char iph_tos;           // Type of service
+  unsigned short int iph_len;      // IP Packet length (data + header)
+  unsigned short int iph_ident;    // Identification
+  unsigned short int iph_flag : 3, // Fragmentation flags
+      iph_offset : 13;             // Flags offset
+  unsigned char iph_ttl;           // Time to Live
+  unsigned char iph_protocol;      // Protocol type
+  unsigned short int iph_chksum;   // IP datagram checksum
+  struct in_addr iph_sourceip;     // Source IP address
+  struct in_addr iph_destip;       // Destination IP address
+};
 
 /* IP Header Function*/
 void print_ip_header(const u_char *Buffer, int Size)
@@ -112,54 +80,6 @@ void print_ip_header(const u_char *Buffer, int Size)
 	// fprintf(logfile, "   |-Checksum : %d\n", ntohs(iph->check));
 	fprintf(logfile, "   |-Source IP        : %s\n", inet_ntoa(source.sin_addr));
 	fprintf(logfile, "   |-Destination IP   : %s\n", inet_ntoa(dest.sin_addr));
-}
-
-int log_bits(unsigned char *data, size_t len, int from_bytes, int from_bits ,int until_bit)
-{
-	int bits = 0, passedBits = 0;
-	for (size_t i = from_bytes; i < len; i++)
-	{
-		for (int j = 7; j >= 0; j--, bits++)
-		{
-			passedBits++;
-			if(from_bits < passedBits){
-				if (bits == until_bit)
-			{
-				fprintf(logfile, "\n");
-				return 1;
-			}
-			fprintf(logfile, "%d", (data[i] >> j) & 1);
-			}
-		}
-	}
-	return 1;
-}
-
-/* Main logfile Function */
-void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *buffer)
-{
-	int size = header->len;
-	//fprintf(logfile, "   |-Timestamp        : %ld\n", header->ts.tv_sec);
-	//fprintf(logfile, "   |-Cache            : %.2x\n", buffer[52]);
-	//fprintf(logfile, "   |-Steps            : %.2x\n", buffer[53]);
-	//fprintf(logfile, "   |-Type             : %d\n", buffer[54]);
-	fprintf(logfile, "   |-Status code      : ");
-	log_bits(buffer, size, 0, 0, 32);
-
-	// Get the IP Header part of this packet, excluding the ethernet header
-	struct iphdr *iph = (struct iphdr *)(buffer + sizeof(struct ethhdr));
-	++total;
-	switch (iph->protocol) // Check the Protocol and do accordingly...
-	{
-	case 6: // TCP Protocol
-		++tcp;
-		print_tcp_packet(buffer, size);
-		break;
-
-	default: // Some Other Protocol like ARP etc.
-		++others;
-		break;
-	}
 }
 
 /* TCP Header Function */
@@ -210,6 +130,97 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 	fprintf(logfile, "Data Payload\n");
 	PrintData(Buffer + header_size, Size - header_size);
 	fprintf(logfile, "\n###########################################################\n");
+}
+
+/* API Header */
+struct calculatorPacket {
+    unsigned int unixtime;
+    unsigned short length;
+    unsigned short reserved:3,
+    c_flag:1,
+    s_flag:1,
+    t_flag:1,
+    status:10;
+    unsigned short cache;
+    unsigned short padding;
+} cpack, *pcpack;
+
+void PrintData(const u_char *data, int Size)
+{
+	int i, j;
+	for (i = 0; i < Size; i++)
+	{
+		if (i != 0 && i % 16 == 0) // if one line of hex printing is complete...
+		{
+			fprintf(logfile, "         ");
+			for (j = i - 16; j < i; j++)
+			{
+				if (data[j] >= 32 && data[j] <= 128)
+					fprintf(logfile, "%c", (unsigned char)data[j]); // if its a number or alphabet
+
+				else
+					fprintf(logfile, "."); // otherwise print a dot
+			}
+			fprintf(logfile, "\n");
+		}
+
+		if (i % 16 == 0)
+			fprintf(logfile, "   ");
+		fprintf(logfile, " %02X", (unsigned int)data[i]);
+
+		if (i == Size - 1) // print the last spaces
+		{
+			for (j = 0; j < 15 - i % 16; j++)
+			{
+				fprintf(logfile, "   "); // extra spaces
+			}
+
+			fprintf(logfile, "         ");
+
+			for (j = i - i % 16; j <= i; j++)
+			{
+				if (data[j] >= 32 && data[j] <= 128)
+				{
+					fprintf(logfile, "%c", (unsigned char)data[j]);
+				}
+				else
+				{
+					fprintf(logfile, ".");
+				}
+			}
+
+			fprintf(logfile, "\n");
+		}
+	}
+}
+
+/* Main logfile Function */
+void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
+{
+	int size = header->len;
+	//fprintf(logfile, "   |-Timestamp        : %ld\n", header->ts.tv_sec);
+	struct ethheader *eth = (struct ethheader *)packet;
+	
+	struct ipheader *ip = (struct ipheader *)(packet + sizeof(struct ethheader));
+	
+	struct tcphdr* tcph = (struct tcphdr*)(packet + sizeof(struct ethhdr) + iph->ip_hl*4);
+	
+	struct calculatorPacket * api_data = (struct calculatorPacket*)(packet + sizeof(struct ethhdr) + iph->ip_hl*4 + sizeof(struct tcphdr));
+
+	// Get the IP Header part of this packet, excluding the ethernet header
+	struct iphdr *iph = (struct iphdr *)(packet + sizeof(struct ethhdr));
+	++total;
+	switch (iph->protocol) // Check the Protocol and do accordingly...
+	{
+	case 6: // TCP Protocol
+		++tcp;
+		print_tcp_packet(packet, size);
+		break;
+
+	default: // Some Other Protocol like ARP etc.
+		++others;
+		break;
+	}
 }
 
 // Packet Sniffing using the pcap API
