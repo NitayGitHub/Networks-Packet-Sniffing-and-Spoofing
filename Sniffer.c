@@ -25,15 +25,15 @@ typedef unsigned int u_int;
 /* API Header */
 struct calculatorPacket
 {
-	unsigned int unixtime;
-	unsigned short length;
-	unsigned short reserved : 3,
+	u_int unixtime;
+	u_short length;
+	u_short reserved : 3,
 		c_flag : 1,
 		s_flag : 1,
 		t_flag : 1,
 		status : 10;
-	unsigned short cache;
-	unsigned short padding;
+	u_short cache;
+	u_short padding;
 } cpack, *pcpack;
 
 void PrintData(const u_char *data, int Size)
@@ -139,22 +139,21 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 	// fprintf(logfile, "   |-Reset Flag           : %d\n", (unsigned int)tcph->rst);
 	// fprintf(logfile, "   |-Synchronise Flag     : %d\n", (unsigned int)tcph->syn);
 	// fprintf(logfile, "   |-Finish Flag          : %d\n", (unsigned int)tcph->fin);
-
 	// fprintf(logfile, "   |-Window         : %d\n", ntohs(tcph->window));
 	// fprintf(logfile, "   |-Checksum       : %d\n", ntohs(tcph->check));
 	// fprintf(logfile, "   |-Urgent Pointer : %d\n", tcph->urg_ptr);
 
 	//////////////////* Aplication; Payload (Calculator) Header *///////////////
 	////////////////////////////////////////////////////////////////////////////
-	struct calculatorPacket *api_data = (struct calculatorPacket *)(Buffer + sizeof(struct ethhdr) + tcph->doff * 4 + sizeof(struct tcphdr));
+	struct calculatorPacket *api_data = (struct calculatorPacket *)(Buffer + header_size + sizeof(struct tcphdr));
 
-	fprintf(logfile, "   |-unixtime          : %d\n", (unsigned int)api_data->unixtime);
-	fprintf(logfile, "   |-length            : %d\n", (unsigned short)api_data->length);
-	fprintf(logfile, "   |-c_flag            : %d\n", (unsigned short)api_data->c_flag);
-	fprintf(logfile, "   |-s_flag            : %d\n", (unsigned short)api_data->s_flag);
-	fprintf(logfile, "   |-t_flag            : %d\n", (unsigned short)api_data->t_flag);
-	fprintf(logfile, "   |-status            : %d\n", (unsigned short)api_data->status);
-	fprintf(logfile, "   |-status            : %d\n", (unsigned short)api_data->status);
+	fprintf(logfile, "   |-unixtime         : %d\n", (unsigned int)api_data->unixtime);
+	fprintf(logfile, "   |-length           : %d\n", (unsigned short)(api_data->length)/8);
+	fprintf(logfile, "   |-c_flag           : %d\n", (unsigned short)api_data->c_flag);
+	fprintf(logfile, "   |-s_flag           : %d\n", (unsigned short)api_data->s_flag);
+	fprintf(logfile, "   |-t_flag           : %d\n", (unsigned short)api_data->t_flag);
+	fprintf(logfile, "   |-status           : %d\n", (unsigned short)api_data->status);
+	fprintf(logfile, "   |-cache            : %d\n", (unsigned short)api_data->cache);
 	//fprintf(logfile, "   |-padding             : %d\n\n", (unsigned short)api_data->padding);
 
 	///////////////////////////////////* DATA */////////////////////////////////
