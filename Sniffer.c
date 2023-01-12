@@ -8,6 +8,7 @@
 #include <net/ethernet.h> //Provides declarations for ethernet header
 #include <netinet/tcp.h>  //Provides declarations for tcp header
 #include <netinet/ip.h>	  //Provides declarations for ip header
+#include <time.h>
 
 void got_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
 void print_ip_header(const u_char *, int);
@@ -25,15 +26,15 @@ typedef unsigned int u_int;
 /* API Header */
 struct calculatorPacket
 {
-	u_int unixtime;
-	u_short length;
-	u_short reserved : 3,
-		c_flag : 1,
-		s_flag : 1,
-		t_flag : 1,
-		status : 10;
-	u_short cache;
-	u_short padding;
+	uint32_t unixtime;
+	uint16_t length;
+	uint16_t reserved : 3,
+	c_flag : 1,
+	s_flag : 1,
+	t_flag : 1,
+	status : 10;
+	uint16_t cache;
+	uint16_t padding;
 } cpack, *pcpack;
 
 void PrintData(const u_char *data, int Size)
@@ -104,7 +105,7 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 
 	// fprintf(logfile, "\n");
 	// fprintf(logfile, "IP Header\n");
-	fprintf(logfile, "   |Packet No.        : %d\n", total);
+	fprintf(logfile, "   |-Packet No.        : %d\n", total);
 	// fprintf(logfile, "   |-IP Version        : %d\n", (unsigned int)iph->version);
 	// fprintf(logfile, "   |-IP Header Length  : %d DWORDS or %d Bytes\n", (unsigned int)iph->ihl, ((unsigned int)(iph->ihl)) * 4);
 	// fprintf(logfile, "   |-Type Of Service   : %d\n", (unsigned int)iph->tos);
@@ -145,16 +146,16 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 
 	//////////////////* Aplication; Payload (Calculator) Header *///////////////
 	////////////////////////////////////////////////////////////////////////////
-	struct calculatorPacket *api_data = (struct calculatorPacket *)(Buffer + header_size + sizeof(struct tcphdr));
+	struct calculatorPacket *api_data = (struct calculatorPacket *)(Buffer + header_size);
 
-	fprintf(logfile, "   |-unixtime         : %d\n", (unsigned int)api_data->unixtime);
-	fprintf(logfile, "   |-length           : %d\n", (unsigned short)(api_data->length)/8);
-	fprintf(logfile, "   |-c_flag           : %d\n", (unsigned short)api_data->c_flag);
-	fprintf(logfile, "   |-s_flag           : %d\n", (unsigned short)api_data->s_flag);
-	fprintf(logfile, "   |-t_flag           : %d\n", (unsigned short)api_data->t_flag);
-	fprintf(logfile, "   |-status           : %d\n", (unsigned short)api_data->status);
-	fprintf(logfile, "   |-cache            : %d\n", (unsigned short)api_data->cache);
-	//fprintf(logfile, "   |-padding             : %d\n\n", (unsigned short)api_data->padding);
+	fprintf(logfile, "   |-Timestamp        : %u\n", ntohl(api_data->unixtime));
+	fprintf(logfile, "   |-Total_length     : %hu\n", ntohs(api_data->length));
+	fprintf(logfile, "   |-C_flag           : %hu\n", api_data->c_flag);
+	fprintf(logfile, "   |-S_flag           : %hu\n", api_data->s_flag);
+	fprintf(logfile, "   |-T_flag           : %hu\n", api_data->t_flag);
+	fprintf(logfile, "   |-Status_code      : %hu\n", (api_data->status)>>2);
+	fprintf(logfile, "   |-Cache_control    : %hu\n", ntohs(api_data->cache));
+	//fprintf(logfile, "   |-padding             : %hu\n\n", api_data->padding);
 
 	///////////////////////////////////* DATA */////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////
