@@ -9,8 +9,8 @@ Spoofer: Spoofer.c
 clean:
 	rm -f *.o Sniffer log.txt Spoofer
 	
-runsniff:
+runsn:
 	sudo ./Sniffer
 
-runspoof:
-	./Spoofer
+runsp:
+	sudo ./Spoofer

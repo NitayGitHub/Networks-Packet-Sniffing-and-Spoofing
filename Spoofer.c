@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 typedef unsigned char u_char;
 
@@ -47,6 +48,12 @@ void send_raw_ip_packet(struct ipheader *ip)
 
   // Step 1: Create a raw network socket.
   int sock = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
+  if (sock == -1)
+  {
+    fprintf(stderr, "socket() failed with error: %d", errno);
+    fprintf(stderr, "To create a raw socket, the process needs to be run by Admin/root user.\n\n");
+    return;
+  }
 
   // Step 2: Set socket option.
   setsockopt(sock, IPPROTO_IP, IP_HDRINCL,
@@ -57,14 +64,19 @@ void send_raw_ip_packet(struct ipheader *ip)
   dest_info.sin_addr = ip->iph_destip;
 
   // Step 4: Send the packet out.
-  sendto(sock, ip, ntohs(ip->iph_len), 0, (struct sockaddr *)&dest_info, sizeof(dest_info));
+  int bytes_sent = sendto(sock, ip, ntohs(ip->iph_len), 0, (struct sockaddr *)&dest_info, sizeof(dest_info));
+  if (bytes_sent == -1)
+  {
+    fprintf(stderr, "sendto() failed with error: %d", errno);
+    return;
+  }
+
   close(sock);
 }
 
 int main()
 {
   char buffer[1500];
-
   memset(buffer, 0, 1500);
 
   /*********************************************************
@@ -72,8 +84,10 @@ int main()
    ********************************************************/
   struct icmpheader *icmp = (struct icmpheader *)(buffer + sizeof(struct ipheader));
   icmp->icmp_type = 8; // ICMP Type: 8 is request, 0 is reply.
-
+  icmp->icmp_code = 0; // Identifier (16 bits): some number to trace the response.
+  icmp->icmp_id = 18;  // Sequence Number (16 bits): starts at 0
   // Calculate the checksum for integrity
+  icmp->icmp_seq = 0;
   icmp->icmp_chksum = 0;
   icmp->icmp_chksum = in_cksum((unsigned short *)icmp,
                                sizeof(struct icmpheader));
@@ -86,7 +100,7 @@ int main()
   ip->iph_ihl = 5;
   ip->iph_ttl = 20;
   ip->iph_sourceip.s_addr = inet_addr("1.2.3.4");
-  ip->iph_destip.s_addr = inet_addr("10.0.2.5");
+  ip->iph_destip.s_addr = inet_addr("127.0.0.1"); 
   ip->iph_protocol = IPPROTO_ICMP;
   ip->iph_len = htons(sizeof(struct ipheader) +
                       sizeof(struct icmpheader));

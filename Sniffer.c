@@ -11,13 +11,14 @@
 #include <time.h>
 
 void got_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
+void print_icmp_packet(const u_char *, int);
 void print_ip_header(const u_char *, int);
 void print_tcp_packet(const u_char *, int);
 void PrintData(const u_char *, int);
 
 FILE *logfile;
 struct sockaddr_in source, dest;
-int tcp = 0, others = 0, total = 0;
+int tcp = 0, others = 0, icmp = 0, total = 0;
 
 typedef unsigned char u_char;
 typedef unsigned short u_short;
@@ -46,6 +47,16 @@ struct ipheader
 	unsigned short int iph_chksum;	 // IP datagram checksum
 	struct in_addr iph_sourceip;	 // Source IP address
 	struct in_addr iph_destip;		 // Destination IP address
+};
+
+/* ICMP Header  */
+struct icmpheader
+{
+	unsigned char icmp_type;		// ICMP message type
+	unsigned char icmp_code;		// Error code
+	unsigned short int icmp_chksum; // Checksum for ICMP Header and data
+	unsigned short int icmp_id;		// Used for identifying request
+	unsigned short int icmp_seq;	// Sequence number
 };
 
 /* API Header */
@@ -111,12 +122,77 @@ void PrintData(const u_char *data, int Size)
 	}
 }
 
-/* Write Function */
-void print_tcp_packet(const u_char *Buffer, int Size)
+/* Icmp Write Function */
+void print_icmp_packet(const u_char *Buffer, int Size)
 {
+	fprintf(logfile, "\n***********************ICMP Packet*************************\n");
+	puts("!");
 	//////////////////////////* Link; Ethernet Header */////////////////////////
 	////////////////////////////////////////////////////////////////////////////
 	struct ethhdr *eth = (struct ethhdr *)Buffer;
+
+	//////////////////////////* Network; IP Header *////////////////////////////
+	////////////////////////////////////////////////////////////////////////////
+	struct ipheader *iph = (struct ipheader *)(Buffer + sizeof(struct ethhdr));
+	unsigned short iphdrlen = iph->iph_ihl * 4;
+
+	//////////////////////////* Transport; ICMP Header */////////////////////////
+	////////////////////////////////////////////////////////////////////////////
+	struct icmpheader *icmph = (struct icmpheader *)(Buffer + iphdrlen + sizeof(struct ethhdr));
+	int header_size = sizeof(struct ethhdr) + iphdrlen + sizeof icmph;
+
+	fprintf(logfile, "   |-Type : %d", (unsigned int)(icmph->icmp_type));
+
+	if ((unsigned int)(icmph->icmp_type) == 11)
+	{
+		fprintf(logfile, "  (TTL Expired)\n");
+	}
+	else if ((unsigned int)(icmph->icmp_type) == 0)
+	{
+		fprintf(logfile, "  (ICMP Echo Reply)\n");
+	}
+	else if ((unsigned int)(icmph->icmp_type) == 8)
+	{
+		fprintf(logfile, "  (ICMP Echo Request)\n");
+	}
+
+	fprintf(logfile, "   |-Code : %d\n", (unsigned int)(icmph->icmp_code));
+	fprintf(logfile, "   |-Checksum : %d\n", ntohs(icmph->icmp_chksum));
+	fprintf(logfile, "   |-ID       : %d\n", ntohs(icmph->icmp_id));
+	fprintf(logfile, "   |-Sequence : %d\n", ntohs(icmph->icmp_seq));
+
+	///////////////////////////////////* DATA */////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////
+	fprintf(logfile, "\n");
+	fprintf(logfile, "                        DATA                         ");
+	fprintf(logfile, "\n");
+
+	fprintf(logfile, "IP Header\n");
+	PrintData(Buffer, iphdrlen);
+
+	fprintf(logfile, "ICMP Header\n");
+	PrintData(Buffer + iphdrlen, sizeof icmph);
+
+	fprintf(logfile, "Data Payload\n");
+
+	// Move the pointer ahead and reduce the size of string
+	PrintData(Buffer + header_size, (Size - header_size));
+
+}
+
+/* Tcp Write Function */
+void print_tcp_packet(const u_char *Buffer, int Size)
+{
+	fprintf(logfile, "\n***********************TCP Packet*************************\n");
+
+	//////////////////////////* Link; Ethernet Header */////////////////////////
+	////////////////////////////////////////////////////////////////////////////
+	struct ethhdr *eth = (struct ethhdr *)Buffer;
+
+	// fprintf(logfile, "Ethernet Header\n");
+	// fprintf(logfile, "   |-Destination Address : %.2X-%.2X-%.2X-%.2X-%.2X-%.2X \n", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2], eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
+	// fprintf(logfile, "   |-Source Address      : %.2X-%.2X-%.2X-%.2X-%.2X-%.2X \n", eth->h_source[0], eth->h_source[1], eth->h_source[2], eth->h_source[3], eth->h_source[4], eth->h_source[5]);
+	// fprintf(logfile, "   |-Protocol            : %u \n", (unsigned short)eth->h_proto);
 
 	//////////////////////////* Network; IP Header *////////////////////////////
 	////////////////////////////////////////////////////////////////////////////
@@ -196,7 +272,6 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 
 	fprintf(logfile, "Data Payload\n");
 	PrintData(Buffer + header_size, Size - header_size);
-	fprintf(logfile, "\n###########################################################\n");
 }
 
 /* Main logfile Function */
@@ -204,16 +279,34 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 {
 	int size = header->len;
 	// fprintf(logfile, "   |-Timestamp        : %ld\n", header->ts.tv_sec);
+	// Get the IP Header part of this packet , excluding the ethernet header
+	struct iphdr *iph = (struct iphdr *)(packet + sizeof(struct ethhdr));
 	total++;
-	print_tcp_packet(packet, size);
+	switch (iph->protocol) // Check the Protocol and do accordingly...
+	{
+	case 1: // ICMP Protocol
+		++icmp;
+		print_icmp_packet(packet, size);
+		break;
+
+	case 6: // TCP Protocol
+		++tcp;
+		print_tcp_packet(packet, size);
+		break;
+
+	default: // Some Other Protocol like ARP etc.
+		++others;
+		break;
+	}
 }
 
 // Packet Sniffing using the pcap API
 int main()
 {
 	struct bpf_program fp;
-	char filter_exp[] = "tcp portrange 9998-9999"; /* The filter expression */
-	bpf_u_int32 net;							   /* The IP of our sniffing device */
+	// char filter_exp[] = "tcp portrange 9998-9999"; /* The filter expression */
+	char filter_exp[] = ""; /* The filter expression */
+	bpf_u_int32 net;		/* The IP of our sniffing device */
 	pcap_if_t *alldevsp, *device;
 	pcap_t *handle; // Handle of the device that shall be sniffed
 	char errbuf[100], *devname, devs[100][100];
@@ -278,5 +371,6 @@ int main()
 	pcap_loop(handle, -1, got_packet, NULL);
 
 	pcap_close(handle); // Close the handle
+	fclose(logfile);	// Close the logfile
 	return 0;
 }
