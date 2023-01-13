@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include <pcap.h>         //Provides declarations for pcap library
+#include <pcap.h> //Provides declarations for pcap library
 #include <stdint.h>
-#include <arpa/inet.h>    //Provides declarations for inet_ntoa()
+#include <arpa/inet.h> //Provides declarations for inet_ntoa()
 #include <string.h>
 #include <stdlib.h>
 #include <sys/socket.h>	  //Provides declarations for sockets
@@ -23,16 +23,41 @@ typedef unsigned char u_char;
 typedef unsigned short u_short;
 typedef unsigned int u_int;
 
+/* Ethernet Header */
+struct ethheader
+{
+	u_char ether_dhost[ETHER_ADDR_LEN]; /* destination host address */
+	u_char ether_shost[ETHER_ADDR_LEN]; /* source host address */
+	u_short ether_type;					/* IP? ARP? RARP? etc */
+};
+
+/* IP Header */
+struct ipheader
+{
+	unsigned char iph_ihl : 4,		 // IP header length
+		iph_ver : 4;				 // IP version
+	unsigned char iph_tos;			 // Type of service
+	unsigned short int iph_len;		 // IP Packet length (data + header)
+	unsigned short int iph_ident;	 // Identification
+	unsigned short int iph_flag : 3, // Fragmentation flags
+		iph_offset : 13;			 // Flags offset
+	unsigned char iph_ttl;			 // Time to Live
+	unsigned char iph_protocol;		 // Protocol type
+	unsigned short int iph_chksum;	 // IP datagram checksum
+	struct in_addr iph_sourceip;	 // Source IP address
+	struct in_addr iph_destip;		 // Destination IP address
+};
+
 /* API Header */
 struct calculatorPacket
 {
 	uint32_t unixtime;
 	uint16_t length;
 	uint16_t reserved : 3,
-	c_flag : 1,
-	s_flag : 1,
-	t_flag : 1,
-	status : 10;
+		c_flag : 1,
+		s_flag : 1,
+		t_flag : 1,
+		status : 10;
 	uint16_t cache;
 	uint16_t padding;
 } cpack, *pcpack;
@@ -105,11 +130,11 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 
 	// fprintf(logfile, "\n");
 	// fprintf(logfile, "IP Header\n");
-	fprintf(logfile, "   |-Packet No.        : %d\n", total);
+	fprintf(logfile, "   |-Packet No.       : %d\n", total);
 	// fprintf(logfile, "   |-IP Version        : %d\n", (unsigned int)iph->version);
 	// fprintf(logfile, "   |-IP Header Length  : %d DWORDS or %d Bytes\n", (unsigned int)iph->ihl, ((unsigned int)(iph->ihl)) * 4);
 	// fprintf(logfile, "   |-Type Of Service   : %d\n", (unsigned int)iph->tos);
-	fprintf(logfile, "   |-IP Total Length  : %d  Bytes(Size of Packet)\n", ntohs(iph->tot_len));
+	// fprintf(logfile, "   |-IP Total Length  : %d  Bytes(Size of Packet)\n", ntohs(iph->tot_len));
 	// fprintf(logfile, "   |-Identification    : %d\n", ntohs(iph->id));
 	// fprintf(logfile , "  |-Reserved ZERO Field   : %d\n",(unsigned int)iphdr->ip_reserved_zero);
 	// fprintf(logfile , "  |-Dont Fragment Field   : %d\n",(unsigned int)iphdr->ip_dont_fragment);
@@ -153,9 +178,9 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 	fprintf(logfile, "   |-C_flag           : %hu\n", api_data->c_flag);
 	fprintf(logfile, "   |-S_flag           : %hu\n", api_data->s_flag);
 	fprintf(logfile, "   |-T_flag           : %hu\n", api_data->t_flag);
-	fprintf(logfile, "   |-Status_code      : %hu\n", (api_data->status)>>2);
+	fprintf(logfile, "   |-Status_code      : %hu\n", (api_data->status) >> 2);
 	fprintf(logfile, "   |-Cache_control    : %hu\n", ntohs(api_data->cache));
-	//fprintf(logfile, "   |-padding             : %hu\n\n", api_data->padding);
+	// fprintf(logfile, "   |-padding             : %hu\n\n", api_data->padding);
 
 	///////////////////////////////////* DATA */////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////

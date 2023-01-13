@@ -152,6 +152,7 @@ int main()
 
 /* Ethernet header */
 typedef unsigned char u_char;
+typedef unsigned short u_short;
 
 struct ethheader
 {
@@ -166,9 +167,9 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header,
   struct ethheader *eth = (struct ethheader *)packet;
   if (ntohs(eth->ether_type) == 0x0800)
   {
-    ...
+    
   } // IP packet
-  ...
+  
 }
 
 /**********************************************
