@@ -1,4 +1,4 @@
-all: Sniffer Spoofer Gateway
+all: Sniffer Spoofer Gateway GatewayClient GatewayHost
 
 Sniffer: Sniffer.c
 	gcc Sniffer.c -o Sniffer -lpcap
@@ -8,9 +8,15 @@ Spoofer: Spoofer.c
 
 Gateway: Gateway.c
 	gcc Gateway.c -o Gateway
+
+GatewayClient: GatewayClient.c
+	gcc GatewayClient.c -o GatewayClient
+
+GatewayHost: GatewayHost.c
+	gcc GatewayHost.c -o GatewayHost
 	
 clean:
-	rm -f *.o Sniffer log.txt Spoofer Gateway
+	rm -f *.o Sniffer log.txt Spoofer Gateway GatewayClient GatewayHost
 	
 runsn:
 	sudo ./Sniffer
@@ -22,4 +28,4 @@ runspUDP:
 	sudo ./Spoofer UDP
 
 rungate:
-	./Gateway 8.8.8.8
+	./Gateway 127.0.0.1
