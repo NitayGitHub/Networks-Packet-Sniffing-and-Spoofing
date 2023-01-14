@@ -4,7 +4,7 @@
 #include <arpa/inet.h> //Provides declarations for inet_ntoa()
 #include <string.h>
 #include <linux/tcp.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <sys/socket.h>		 //Provides declarations for sockets
 #include <net/ethernet.h>	 //Provides declarations for ethernet header
 #include <netinet/ip.h>		 //Provides declarations for ip header
@@ -17,7 +17,6 @@
 
 void got_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
 void print_icmp_packet(const u_char *, int);
-void print_ip_header(const u_char *, int);
 void print_tcp_packet(const u_char *, int);
 void PrintData(const u_char *, int);
 
@@ -142,7 +141,7 @@ void PrintData(const u_char *data, int Size)
 /* Icmp Write Function */
 void print_icmp_packet(const u_char *Buffer, int Size)
 {
-	fprintf(logfile, "\n***********************ICMP Packet*************************\n");
+	fprintf(logfile, "***********************ICMP Packet*************************\n");
 	//////////////////////////* Link; Ethernet Header */////////////////////////
 	////////////////////////////////////////////////////////////////////////////
 	struct ethhdr *eth = (struct ethhdr *)Buffer;
@@ -193,12 +192,13 @@ void print_icmp_packet(const u_char *Buffer, int Size)
 
 	// Move the pointer ahead and reduce the size of string
 	PrintData(Buffer + header_size, (Size - header_size));
+	puts("");
 }
 
 /* Tcp Write Function */
 void print_tcp_packet(const u_char *Buffer, int Size)
 {
-	fprintf(logfile, "\n***********************TCP Packet*************************\n");
+	fprintf(logfile, "***********************TCP Packet*************************\n");
 
 	//////////////////////////* Link; Ethernet Header */////////////////////////
 	////////////////////////////////////////////////////////////////////////////
@@ -287,6 +287,7 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 
 	fprintf(logfile, "Data Payload\n");
 	PrintData(Buffer + header_size, Size - header_size);
+	puts("");
 }
 
 /* Main logfile Function */
@@ -313,6 +314,7 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 		++others;
 		break;
 	}
+	fflush(logfile);
 }
 
 // Packet Sniffing using the pcap API
@@ -331,7 +333,7 @@ int main()
 	if (pcap_findalldevs(&alldevsp, errbuf))
 	{
 		printf("Error finding devices : %s", errbuf);
-		exit(1);
+		return -1;
 	}
 	printf("Done");
 
