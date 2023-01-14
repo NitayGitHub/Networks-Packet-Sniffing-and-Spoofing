@@ -24,6 +24,15 @@ struct icmpheader
   unsigned short int icmp_seq;    // Sequence number
 };
 
+/* UDP Header */
+struct udpheader
+{
+  u_int16_t udp_sport; /* source port */
+  u_int16_t udp_dport; /* destination port */
+  u_int16_t udp_ulen;  /* udp length */
+  u_int16_t udp_sum;   /* udp checksum */
+};
+
 /* IP Header */
 struct ipheader
 {
@@ -74,7 +83,7 @@ void send_raw_ip_packet(struct ipheader *ip)
   close(sock);
 }
 
-int main()
+void send_ICMP_spoof()
 {
   char buffer[1500];
   memset(buffer, 0, 1500);
@@ -89,18 +98,17 @@ int main()
   // Calculate the checksum for integrity
   icmp->icmp_seq = 0;
   icmp->icmp_chksum = 0;
-  icmp->icmp_chksum = in_cksum((unsigned short *)icmp,
-                               sizeof(struct icmpheader));
+  icmp->icmp_chksum = in_cksum((unsigned short *)icmp, sizeof(struct icmpheader));
 
   /*********************************************************
-     Step 2: Fill in the IP header.
-   ********************************************************/
+      Step 2: Fill in the IP header.
+    ********************************************************/
   struct ipheader *ip = (struct ipheader *)buffer;
   ip->iph_ver = 4;
   ip->iph_ihl = 5;
   ip->iph_ttl = 20;
-  ip->iph_sourceip.s_addr = inet_addr("1.2.3.4");
-  ip->iph_destip.s_addr = inet_addr("127.0.0.1"); 
+  ip->iph_sourceip.s_addr = inet_addr("10.0.2.15");
+  ip->iph_destip.s_addr = inet_addr("8.8.8.8");
   ip->iph_protocol = IPPROTO_ICMP;
   ip->iph_len = htons(sizeof(struct ipheader) +
                       sizeof(struct icmpheader));
@@ -109,6 +117,91 @@ int main()
      Step 3: Finally, send the spoofed packet
    ********************************************************/
   send_raw_ip_packet(ip);
+
+  return;
+}
+
+void send_UDP_spoof()
+{
+  char buffer[1500];
+  memset(buffer, 0, 1500);
+  struct ipheader *ip = (struct ipheader *)buffer;
+  struct udpheader *udp = (struct udpheader *)(buffer + sizeof(struct ipheader));
+
+  /*********************************************************
+     Step 1: Fill in the UDP data field.
+   ********************************************************/
+  char *data = buffer + sizeof(struct ipheader) +
+               sizeof(struct udpheader);
+  const char *msg = "Hello Server!\n";
+  int data_len = strlen(msg);
+  strncpy(data, msg, data_len);
+
+  /*********************************************************
+     Step 2: Fill in the UDP header.
+   ********************************************************/
+  udp->udp_sport = htons(12345);
+  udp->udp_dport = htons(9090);
+  udp->udp_ulen = htons(sizeof(struct udpheader) + data_len);
+  udp->udp_sum = 0; /* Many OSes ignore this field, so we do not
+                       calculate it. */
+
+  /*********************************************************
+     Step 3: Fill in the IP header.
+   ********************************************************/
+  ip->iph_ver = 4;
+  ip->iph_ihl = 5;
+  ip->iph_ttl = 20;
+  ip->iph_sourceip.s_addr = inet_addr("10.0.2.15");
+  ip->iph_destip.s_addr = inet_addr("8.8.8.8");
+  ip->iph_protocol = IPPROTO_UDP;
+  ip->iph_len = htons(sizeof(struct ipheader) +
+                      sizeof(struct udpheader) + data_len);
+
+  /*********************************************************
+     Step 4: Finally, send the spoofed packet
+   ********************************************************/
+  send_raw_ip_packet(ip);
+
+  return;
+}
+
+int main(int count, char *argv[])
+{
+  enum proto
+  {
+    ICMP,
+    UDP,
+    TCP
+  };
+
+  enum proto user_proto;
+  
+  if (strcmp(argv[1], "ICMP") == 0)
+    user_proto = ICMP;
+  else if (strcmp(argv[1], "UDP") == 0)
+    user_proto = UDP;
+  else if (strcmp(argv[1], "TCP") == 0)
+    user_proto = TCP;
+
+  switch (user_proto) // Check the Protocol and do accordingly...
+  {
+  case 0: // ICMP Protocol
+    send_ICMP_spoof();
+    break;
+
+  case 1: // UDP Protocol
+    send_UDP_spoof();
+    break;
+
+  case 2: // TCP Protocol
+
+    break;
+
+  default: // Some Other Protocol like ARP etc.
+    perror("Invalid Protocol");
+    break;
+  }
 
   return 0;
 }

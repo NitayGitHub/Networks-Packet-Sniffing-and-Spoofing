@@ -3,12 +3,17 @@
 #include <stdint.h>
 #include <arpa/inet.h> //Provides declarations for inet_ntoa()
 #include <string.h>
+#include <linux/tcp.h>
 #include <stdlib.h>
-#include <sys/socket.h>	  //Provides declarations for sockets
-#include <net/ethernet.h> //Provides declarations for ethernet header
-#include <netinet/tcp.h>  //Provides declarations for tcp header
-#include <netinet/ip.h>	  //Provides declarations for ip header
+#include <sys/socket.h>		 //Provides declarations for sockets
+#include <net/ethernet.h>	 //Provides declarations for ethernet header
+#include <netinet/ip.h>		 //Provides declarations for ip header
 #include <time.h>
+
+#define FILTER ""
+//#define FILTER "tcp portrange 9998-9999"
+//#define FILTER "tcp dst portrange 10-100"
+//#define FILTER "icmp"
 
 void got_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
 void print_icmp_packet(const u_char *, int);
@@ -50,13 +55,25 @@ struct ipheader
 };
 
 /* ICMP Header  */
-struct icmpheader
+struct icmpheadr
 {
-	unsigned char icmp_type;		// ICMP message type
-	unsigned char icmp_code;		// Error code
-	unsigned short int icmp_chksum; // Checksum for ICMP Header and data
-	unsigned short int icmp_id;		// Used for identifying request
-	unsigned short int icmp_seq;	// Sequence number
+  u_int8_t type;                /* message type */
+  u_int8_t code;                /* type sub-code */
+  u_int16_t checksum;
+  union
+  {
+    struct
+    {
+      u_int16_t        id;
+      u_int16_t        sequence;
+    } echo;                        /* echo datagram */
+    u_int32_t        gateway;        /* gateway address */
+    struct
+    {
+      u_int16_t        __unused;
+      u_int16_t        mtu;
+    } frag;                        /* path mtu discovery */
+  } un;
 };
 
 /* API Header */
@@ -126,40 +143,39 @@ void PrintData(const u_char *data, int Size)
 void print_icmp_packet(const u_char *Buffer, int Size)
 {
 	fprintf(logfile, "\n***********************ICMP Packet*************************\n");
-	puts("!");
 	//////////////////////////* Link; Ethernet Header */////////////////////////
 	////////////////////////////////////////////////////////////////////////////
 	struct ethhdr *eth = (struct ethhdr *)Buffer;
 
 	//////////////////////////* Network; IP Header *////////////////////////////
 	////////////////////////////////////////////////////////////////////////////
-	struct ipheader *iph = (struct ipheader *)(Buffer + sizeof(struct ethhdr));
-	unsigned short iphdrlen = iph->iph_ihl * 4;
+	struct iphdr *iph = (struct iphdr *)(Buffer + sizeof(struct ethhdr));
+	unsigned short iphdrlen = iph->ihl * 4;
 
 	//////////////////////////* Transport; ICMP Header */////////////////////////
 	////////////////////////////////////////////////////////////////////////////
-	struct icmpheader *icmph = (struct icmpheader *)(Buffer + iphdrlen + sizeof(struct ethhdr));
+	struct icmpheadr *icmph = (struct icmpheadr *)(Buffer + iphdrlen + sizeof(struct ethhdr));
 	int header_size = sizeof(struct ethhdr) + iphdrlen + sizeof icmph;
 
-	fprintf(logfile, "   |-Type : %d", (unsigned int)(icmph->icmp_type));
+	fprintf(logfile, "   |-Type : %u", (unsigned int)(icmph->type));
 
-	if ((unsigned int)(icmph->icmp_type) == 11)
+	if ((unsigned int)(icmph->type) == 11)
 	{
 		fprintf(logfile, "  (TTL Expired)\n");
 	}
-	else if ((unsigned int)(icmph->icmp_type) == 0)
+	else if ((unsigned int)(icmph->type) == 0)
 	{
 		fprintf(logfile, "  (ICMP Echo Reply)\n");
 	}
-	else if ((unsigned int)(icmph->icmp_type) == 8)
+	else if ((unsigned int)(icmph->type) == 8)
 	{
 		fprintf(logfile, "  (ICMP Echo Request)\n");
 	}
 
-	fprintf(logfile, "   |-Code : %d\n", (unsigned int)(icmph->icmp_code));
-	fprintf(logfile, "   |-Checksum : %d\n", ntohs(icmph->icmp_chksum));
-	fprintf(logfile, "   |-ID       : %d\n", ntohs(icmph->icmp_id));
-	fprintf(logfile, "   |-Sequence : %d\n", ntohs(icmph->icmp_seq));
+	fprintf(logfile, "   |-Code : %u\n", (unsigned short)(icmph->code));
+	fprintf(logfile, "   |-Checksum : %d\n", ntohs(icmph->checksum));
+	fprintf(logfile, "   |-ID       : %d\n", ntohs(icmph->un.echo.id));
+	fprintf(logfile, "   |-Sequence : %d\n", ntohs(icmph->un.echo.sequence));
 
 	///////////////////////////////////* DATA */////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////
@@ -177,7 +193,6 @@ void print_icmp_packet(const u_char *Buffer, int Size)
 
 	// Move the pointer ahead and reduce the size of string
 	PrintData(Buffer + header_size, (Size - header_size));
-
 }
 
 /* Tcp Write Function */
@@ -304,8 +319,7 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 int main()
 {
 	struct bpf_program fp;
-	// char filter_exp[] = "tcp portrange 9998-9999"; /* The filter expression */
-	char filter_exp[] = ""; /* The filter expression */
+	char filter_exp[] = FILTER; /* The filter expression */
 	bpf_u_int32 net;		/* The IP of our sniffing device */
 	pcap_if_t *alldevsp, *device;
 	pcap_t *handle; // Handle of the device that shall be sniffed
@@ -360,7 +374,7 @@ int main()
 		fprintf(stderr, "Couldn't set filter: %s.\n", filter_exp);
 		return (2);
 	}
-
+	
 	logfile = fopen("log.txt", "w");
 	if (logfile == NULL)
 	{

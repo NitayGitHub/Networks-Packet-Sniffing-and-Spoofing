@@ -12,5 +12,8 @@ clean:
 runsn:
 	sudo ./Sniffer
 
-runsp:
-	sudo ./Spoofer
+runspICMP:
+	sudo ./Spoofer ICMP
+
+runspUDP:
+	sudo ./Spoofer UDP
