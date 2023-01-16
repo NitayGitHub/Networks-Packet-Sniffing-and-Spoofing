@@ -150,6 +150,14 @@ void print_icmp_packet(const u_char *Buffer, int Size)
 	////////////////////////////////////////////////////////////////////////////
 	struct iphdr *iph = (struct iphdr *)(Buffer + sizeof(struct ethhdr));
 	unsigned short iphdrlen = iph->ihl * 4;
+	memset(&source, 0, sizeof(source));
+	source.sin_addr.s_addr = iph->saddr;
+
+	memset(&dest, 0, sizeof(dest));
+	dest.sin_addr.s_addr = iph->daddr;
+
+	fprintf(logfile, "   |-Source IP        : %s\n", inet_ntoa(source.sin_addr));
+	fprintf(logfile, "   |-Destination IP   : %s\n", inet_ntoa(dest.sin_addr));
 
 	//////////////////////////* Transport; ICMP Header */////////////////////////
 	////////////////////////////////////////////////////////////////////////////
