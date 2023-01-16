@@ -5,15 +5,15 @@
 #include <string.h>
 #include <linux/tcp.h>
 #include <stdio.h>
-#include <sys/socket.h>		 //Provides declarations for sockets
-#include <net/ethernet.h>	 //Provides declarations for ethernet header
-#include <netinet/ip.h>		 //Provides declarations for ip header
+#include <sys/socket.h>	  //Provides declarations for sockets
+#include <net/ethernet.h> //Provides declarations for ethernet header
+#include <netinet/ip.h>	  //Provides declarations for ip header
 #include <time.h>
 
 #define FILTER ""
-//#define FILTER "tcp portrange 9998-9999"
-//#define FILTER "tcp dst portrange 10-100"
-//#define FILTER "icmp"
+// #define FILTER "tcp portrange 9998-9999"
+// #define FILTER "tcp dst portrange 10-100"
+// #define FILTER "icmp"
 
 void got_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
 void print_icmp_packet(const u_char *, int);
@@ -56,23 +56,23 @@ struct ipheader
 /* ICMP Header  */
 struct icmpheadr
 {
-  u_int8_t type;                /* message type */
-  u_int8_t code;                /* type sub-code */
-  u_int16_t checksum;
-  union
-  {
-    struct
-    {
-      u_int16_t        id;
-      u_int16_t        sequence;
-    } echo;                        /* echo datagram */
-    u_int32_t        gateway;        /* gateway address */
-    struct
-    {
-      u_int16_t        __unused;
-      u_int16_t        mtu;
-    } frag;                        /* path mtu discovery */
-  } un;
+	u_int8_t type; /* message type */
+	u_int8_t code; /* type sub-code */
+	u_int16_t checksum;
+	union
+	{
+		struct
+		{
+			u_int16_t id;
+			u_int16_t sequence;
+		} echo;			   /* echo datagram */
+		u_int32_t gateway; /* gateway address */
+		struct
+		{
+			u_int16_t __unused;
+			u_int16_t mtu;
+		} frag; /* path mtu discovery */
+	} un;
 };
 
 /* API Header */
@@ -192,7 +192,6 @@ void print_icmp_packet(const u_char *Buffer, int Size)
 
 	// Move the pointer ahead and reduce the size of string
 	PrintData(Buffer + header_size, (Size - header_size));
-	puts("");
 }
 
 /* Tcp Write Function */
@@ -287,7 +286,6 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 
 	fprintf(logfile, "Data Payload\n");
 	PrintData(Buffer + header_size, Size - header_size);
-	puts("");
 }
 
 /* Main logfile Function */
@@ -300,6 +298,11 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 	total++;
 	switch (iph->protocol) // Check the Protocol and do accordingly...
 	{
+	case 0: // ICMP Protocol
+		++icmp;
+		print_icmp_packet(packet, size);
+		break;
+	
 	case 1: // ICMP Protocol
 		++icmp;
 		print_icmp_packet(packet, size);
@@ -322,7 +325,7 @@ int main()
 {
 	struct bpf_program fp;
 	char filter_exp[] = FILTER; /* The filter expression */
-	bpf_u_int32 net;		/* The IP of our sniffing device */
+	bpf_u_int32 net;			/* The IP of our sniffing device */
 	pcap_if_t *alldevsp, *device;
 	pcap_t *handle; // Handle of the device that shall be sniffed
 	char errbuf[100], *devname, devs[100][100];
@@ -376,7 +379,7 @@ int main()
 		fprintf(stderr, "Couldn't set filter: %s.\n", filter_exp);
 		return (2);
 	}
-	
+
 	logfile = fopen("log.txt", "w");
 	if (logfile == NULL)
 	{
