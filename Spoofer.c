@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/socket.h>  //Provides declarations for sockets
-#include <netinet/tcp.h> //Provides declarations for tcp header
-#include <netinet/ip.h>  //Provides declarations for ip header
+#include <sys/socket.h> //Provides declarations for sockets
+#include <netinet/ip.h> //Provides declarations for ip header
+#include <net/ethernet.h>
 #include <time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -13,6 +13,7 @@
 typedef unsigned char u_char;
 
 unsigned short in_cksum(unsigned short *, int);
+unsigned short ip_checksum(unsigned short *, int );
 
 /* ICMP Header  */
 struct icmpheader
@@ -31,6 +32,30 @@ struct udpheader
   u_int16_t udp_dport; /* destination port */
   u_int16_t udp_ulen;  /* udp length */
   u_int16_t udp_sum;   /* udp checksum */
+};
+
+struct tcpheader
+{
+  unsigned short int tcph_srcport;
+  unsigned short int tcph_destport;
+  unsigned int tcph_seqnum;
+  unsigned int tcph_acknum;
+  unsigned char tcph_reserved : 4, tcph_offset : 4;
+  // unsigned char tcph_flags;
+  unsigned int
+      tcp_res1 : 4,  /*little-endian*/
+      tcph_hlen : 4, /*length of tcp header in 32-bit words*/
+      tcph_fin : 1,  /*Finish flag "fin"*/
+      tcph_syn : 1,  /*Synchronize sequence numbers to start a connection*/
+      tcph_rst : 1,  /*Reset flag */
+      tcph_psh : 1,  /*Push, sends data to the application*/
+      tcph_ack : 1,  /*acknowledge*/
+      tcph_urg : 1,  /*urgent pointer*/
+      tcph_res2 : 2;
+
+  unsigned short int tcph_win;
+  unsigned short int tcph_chksum;
+  unsigned short int tcph_urgptr;
 };
 
 /* IP Header */
@@ -83,6 +108,59 @@ void send_raw_ip_packet(struct ipheader *ip)
   close(sock);
 }
 
+void send_TCP_spoof()
+{
+  char buffer[1500];
+  memset(buffer, 0, 1500);
+  struct ipheader *ip = (struct ipheader *)buffer;
+  struct tcpheader *tcph = (struct tcpheader *)(buffer + sizeof(struct ipheader));
+
+  /*********************************************************
+     Step 1: Fill in the TCP data field.
+   ********************************************************/
+  char *data = buffer + ip->iph_ihl * 4 + sizeof(struct ethhdr);
+  const char *msg = "Hello Server!\n";
+  int data_len = strlen(msg);
+  strncpy(data, msg, data_len);
+
+  /*********************************************************
+     Step 2: Fill in the TCP header.
+   ********************************************************/
+  tcph->tcph_srcport = htons(12345);
+  tcph->tcph_destport = htons(9090);
+  tcph->tcph_seqnum = htonl(1);
+  tcph->tcph_syn = 1;
+  tcph->tcph_ack = 0;
+  tcph->tcph_win = htons(32767);
+  tcph->tcph_chksum = 0;
+  tcph->tcph_urgptr = 0;
+  tcph->tcph_hlen = 5;
+
+  /*********************************************************
+     Step 3: Fill in the IP header.
+   ********************************************************/
+  ip->iph_ver = 4;
+  ip->iph_ihl = 5;
+  ip->iph_tos = 0;
+  ip->iph_ttl = 64;
+  ip->iph_ident = htons(54321);
+  ip->iph_offset = 0;
+  ip->iph_sourceip.s_addr = inet_addr("10.0.2.15");
+  ip->iph_destip.s_addr = inet_addr("127.0.0.1");
+  ip->iph_protocol = IPPROTO_TCP;
+  ip->iph_chksum = htons(ip_checksum((unsigned short *) buffer, (sizeof(struct ipheader) + sizeof(struct tcpheader))));
+  ip->iph_len = htons(sizeof(struct ipheader) +
+                      sizeof(struct tcpheader) + data_len);
+
+  /*********************************************************
+     Step 4: Finally, send the spoofed packet
+   ********************************************************/
+  send_raw_ip_packet(ip);
+
+  return;
+}
+
+
 void send_ICMP_spoof()
 {
   char buffer[1500];
@@ -107,7 +185,7 @@ void send_ICMP_spoof()
   ip->iph_ver = 4;
   ip->iph_ihl = 5;
   ip->iph_ttl = 20;
-  ip->iph_sourceip.s_addr = inet_addr("10.0.2.15");
+  ip->iph_sourceip.s_addr = inet_addr("8.8.8.8");
   ip->iph_destip.s_addr = inet_addr("127.0.0.1");
   ip->iph_protocol = IPPROTO_ICMP;
   ip->iph_len = htons(sizeof(struct ipheader) +
@@ -176,7 +254,7 @@ int main(int count, char *argv[])
   };
 
   enum proto user_proto;
-  
+
   if (strcmp(argv[1], "ICMP") == 0)
     user_proto = ICMP;
   else if (strcmp(argv[1], "UDP") == 0)
@@ -195,7 +273,7 @@ int main(int count, char *argv[])
     break;
 
   case 2: // TCP Protocol
-
+    //send_TCP_spoof();
     break;
 
   default: // Some Other Protocol like ARP etc.
@@ -235,4 +313,14 @@ unsigned short in_cksum(unsigned short *buf, int length)
   sum = (sum >> 16) + (sum & 0xffff); // add hi 16 to low 16
   sum += (sum >> 16);                 // add carry
   return (unsigned short)(~sum);
+}
+
+unsigned short ip_checksum(unsigned short *buf, int len)
+{
+        unsigned long sum;
+        for(sum=0; len>0; len--)
+        sum += *buf++;
+        sum = (sum >> 16) + (sum &0xffff);
+        sum += (sum >> 16);
+        return (unsigned short)(~sum);
 }

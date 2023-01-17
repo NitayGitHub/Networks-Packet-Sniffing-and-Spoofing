@@ -1,4 +1,4 @@
-all: Sniffer Spoofer Gateway GatewayClient GatewayHost
+all: Sniffer Spoofer Gateway GatewayClient GatewayHost Sniff_and_spoof
 
 Sniffer: Sniffer.c
 	gcc Sniffer.c -o Sniffer -lpcap
@@ -14,9 +14,12 @@ GatewayClient: GatewayClient.c
 
 GatewayHost: GatewayHost.c
 	gcc GatewayHost.c -o GatewayHost
+
+Sniff_and_spoof: Sniff_and_spoof.c
+	gcc Sniff_and_spoof.c -o Sniff_and_spoof -lpcap
 	
 clean:
-	rm -f *.o Sniffer log.txt Spoofer Gateway GatewayClient GatewayHost
+	rm -f *.o Sniffer log.txt Spoofer Gateway GatewayClient GatewayHost Sniff_and_spoof
 	
 runsn:
 	sudo ./Sniffer
@@ -27,5 +30,11 @@ runspICMP:
 runspUDP:
 	sudo ./Spoofer UDP
 
+runspTCP:
+	sudo ./Spoofer TCP
+
 rungate:
 	./Gateway 127.0.0.1
+
+runsnsp:
+	sudo ./Sniff_and_spoof
