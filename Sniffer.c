@@ -17,7 +17,7 @@
 
 void got_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
 void print_icmp_packet(const u_char *, int);
-void print_tcp_packet(const u_char *, int);
+void print_tcp_packet(const u_char *, int, const struct pcap_pkthdr *);
 void PrintData(const u_char *, int);
 
 FILE *logfile;
@@ -203,14 +203,13 @@ void print_icmp_packet(const u_char *Buffer, int Size)
 }
 
 /* Tcp Write Function */
-void print_tcp_packet(const u_char *Buffer, int Size)
+void print_tcp_packet(const u_char *Buffer, int Size, const struct pcap_pkthdr *header)
 {
 	fprintf(logfile, "***********************TCP Packet*************************\n");
 
 	//////////////////////////* Link; Ethernet Header */////////////////////////
 	////////////////////////////////////////////////////////////////////////////
 	struct ethhdr *eth = (struct ethhdr *)Buffer;
-
 	// fprintf(logfile, "Ethernet Header\n");
 	// fprintf(logfile, "   |-Destination Address : %.2X-%.2X-%.2X-%.2X-%.2X-%.2X \n", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2], eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
 	// fprintf(logfile, "   |-Source Address      : %.2X-%.2X-%.2X-%.2X-%.2X-%.2X \n", eth->h_source[0], eth->h_source[1], eth->h_source[2], eth->h_source[3], eth->h_source[4], eth->h_source[5]);
@@ -269,9 +268,12 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 
 	//////////////////* Aplication; Payload (Calculator) Header *///////////////
 	////////////////////////////////////////////////////////////////////////////
-	struct calculatorPacket *api_data = (struct calculatorPacket *)(Buffer + header_size);
-
-	fprintf(logfile, "   |-Timestamp        : %u\n", ntohl(api_data->unixtime));
+	struct calculatorPacket *api_data = (struct calculatorPacket *)(Buffer + sizeof(struct ethhdr) + iph->ihl * 4 + tcph->doff * 4);
+	
+	//fprintf(logfile, "   |-Timestamp        : %u\n", ntohl(api_data->unixtime));
+	time_t timestamp = header->ts.tv_sec;
+	struct tm *time_struct = gmtime(&timestamp);
+	fprintf(logfile, "   |-Timestamp        : %s\n", asctime(time_struct));
 	fprintf(logfile, "   |-Total_length     : %hu\n", ntohs(api_data->length));
 	fprintf(logfile, "   |-C_flag           : %hu\n", api_data->c_flag);
 	fprintf(logfile, "   |-S_flag           : %hu\n", api_data->s_flag);
@@ -300,7 +302,6 @@ void print_tcp_packet(const u_char *Buffer, int Size)
 void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 {
 	int size = header->len;
-	// fprintf(logfile, "   |-Timestamp        : %ld\n", header->ts.tv_sec);
 	// Get the IP Header part of this packet , excluding the ethernet header
 	struct iphdr *iph = (struct iphdr *)(packet + sizeof(struct ethhdr));
 	total++;
@@ -318,7 +319,7 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 
 	case 6: // TCP Protocol
 		++tcp;
-		print_tcp_packet(packet, size);
+		print_tcp_packet(packet, size, header);
 		break;
 
 	default: // Some Other Protocol like ARP etc.
