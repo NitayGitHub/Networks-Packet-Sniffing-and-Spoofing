@@ -19,7 +19,7 @@ Sniff_and_spoof: Sniff_and_spoof.c
 	gcc Sniff_and_spoof.c -o Sniff_and_spoof -lpcap
 	
 clean:
-	rm -f *.o Sniffer log.txt Spoofer Gateway GatewayClient GatewayHost Sniff_and_spoof
+	rm -f *.o Sniffer 319096251_213934599.txt Spoofer Gateway GatewayClient GatewayHost Sniff_and_spoof
 	
 runsn:
 	sudo ./Sniffer

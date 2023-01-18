@@ -12,8 +12,8 @@
 
 #define FILTER ""
 // #define FILTER "tcp portrange 9998-9999"
-// #define FILTER "tcp dst portrange 10-100"
-// #define FILTER "icmp"
+//#define FILTER "tcp dst portrange 10-100"
+//#define FILTER "icmp and host 8.8.8.8 and host 10.0.2.15"
 
 void got_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
 void print_icmp_packet(const u_char *, int);
