@@ -11,9 +11,12 @@
 #include <errno.h>
 
 typedef unsigned char u_char;
+typedef unsigned short u_short;
+typedef unsigned int u_int;
+typedef unsigned long u_long;
 
 unsigned short in_cksum(unsigned short *, int);
-unsigned short ip_checksum(unsigned short *, int );
+unsigned short ip_checksum(unsigned short *, int);
 
 /* ICMP Header  */
 struct icmpheader
@@ -75,6 +78,15 @@ struct ipheader
   struct in_addr iph_destip;       // Destination IP address
 };
 
+struct pseudo
+{
+  u_long saddr;
+  u_long daddr;
+  u_char zero;
+  u_char protocol;
+  u_short length;
+};
+
 void send_raw_ip_packet(struct ipheader *ip)
 {
   struct sockaddr_in dest_info;
@@ -110,9 +122,10 @@ void send_raw_ip_packet(struct ipheader *ip)
 
 void send_TCP_spoof()
 {
-  char buffer[1500];
-  memset(buffer, 0, 1500);
+  u_char buffer[sizeof(struct ipheader) + sizeof(struct pseudo) + sizeof(struct tcpheader)];
+  bzero(buffer, sizeof(buffer));
   struct ipheader *ip = (struct ipheader *)buffer;
+  struct pseudo *pseudo = (struct pseudo *) (buffer + sizeof(struct ipheader));
   struct tcpheader *tcph = (struct tcpheader *)(buffer + sizeof(struct ipheader));
 
   /*********************************************************
@@ -132,23 +145,29 @@ void send_TCP_spoof()
   tcph->tcph_syn = 1;
   tcph->tcph_ack = 0;
   tcph->tcph_win = htons(32767);
-  tcph->tcph_chksum = 0;
+  tcph->tcph_chksum = in_cksum((unsigned short *)pseudo, sizeof(struct pseudo) + sizeof(struct tcpheader));
   tcph->tcph_urgptr = 0;
   tcph->tcph_hlen = 5;
+  tcph->tcph_offset = 5;
 
   /*********************************************************
      Step 3: Fill in the IP header.
    ********************************************************/
+  pseudo->saddr = inet_addr("10.0.2.15");
+  pseudo->daddr = inet_addr("127.0.0.1");
+  pseudo->zero = 0;
+  pseudo->protocol = IPPROTO_TCP;
+  pseudo->length = htons(sizeof(struct tcpheader));
   ip->iph_ver = 4;
   ip->iph_ihl = 5;
   ip->iph_tos = 0;
-  ip->iph_ttl = 64;
+  ip->iph_ttl = 40;
   ip->iph_ident = htons(54321);
   ip->iph_offset = 0;
   ip->iph_sourceip.s_addr = inet_addr("10.0.2.15");
   ip->iph_destip.s_addr = inet_addr("127.0.0.1");
   ip->iph_protocol = IPPROTO_TCP;
-  ip->iph_chksum = htons(ip_checksum((unsigned short *) buffer, (sizeof(struct ipheader) + sizeof(struct tcpheader))));
+  ip->iph_chksum = htons(in_cksum((unsigned short *)buffer, (sizeof(struct ipheader) + sizeof(struct tcpheader))));
   ip->iph_len = htons(sizeof(struct ipheader) +
                       sizeof(struct tcpheader) + data_len);
 
@@ -159,7 +178,6 @@ void send_TCP_spoof()
 
   return;
 }
-
 
 void send_ICMP_spoof()
 {
@@ -273,7 +291,7 @@ int main(int count, char *argv[])
     break;
 
   case 2: // TCP Protocol
-    //send_TCP_spoof();
+    send_TCP_spoof();
     break;
 
   default: // Some Other Protocol like ARP etc.
@@ -313,14 +331,4 @@ unsigned short in_cksum(unsigned short *buf, int length)
   sum = (sum >> 16) + (sum & 0xffff); // add hi 16 to low 16
   sum += (sum >> 16);                 // add carry
   return (unsigned short)(~sum);
-}
-
-unsigned short ip_checksum(unsigned short *buf, int len)
-{
-        unsigned long sum;
-        for(sum=0; len>0; len--)
-        sum += *buf++;
-        sum = (sum >> 16) + (sum &0xffff);
-        sum += (sum >> 16);
-        return (unsigned short)(~sum);
 }

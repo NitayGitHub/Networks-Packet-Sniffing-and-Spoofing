@@ -389,7 +389,7 @@ int main()
 		return (2);
 	}
 
-	logfile = fopen("log.txt", "w");
+	logfile = fopen("319096251_213934599.txt", "w");
 	if (logfile == NULL)
 	{
 		printf("Unable to create file.");
