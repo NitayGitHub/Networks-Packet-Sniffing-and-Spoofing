@@ -78,15 +78,6 @@ struct ipheader
   struct in_addr iph_destip;       // Destination IP address
 };
 
-struct pseudo
-{
-  u_long saddr;
-  u_long daddr;
-  u_char zero;
-  u_char protocol;
-  u_short length;
-};
-
 void send_raw_ip_packet(struct ipheader *ip)
 {
   struct sockaddr_in dest_info;
@@ -122,16 +113,15 @@ void send_raw_ip_packet(struct ipheader *ip)
 
 void send_TCP_spoof()
 {
-  u_char buffer[sizeof(struct ipheader) + sizeof(struct pseudo) + sizeof(struct tcpheader)];
-  bzero(buffer, sizeof(buffer));
+  char buffer[1500];
+  memset(buffer, 0, 1500);
   struct ipheader *ip = (struct ipheader *)buffer;
-  struct pseudo *pseudo = (struct pseudo *) (buffer + sizeof(struct ipheader));
   struct tcpheader *tcph = (struct tcpheader *)(buffer + sizeof(struct ipheader));
 
   /*********************************************************
      Step 1: Fill in the TCP data field.
    ********************************************************/
-  char *data = buffer + ip->iph_ihl * 4 + sizeof(struct ethhdr);
+  char *data = buffer + sizeof(struct ipheader) + sizeof(struct tcpheader);
   const char *msg = "Hello Server!\n";
   int data_len = strlen(msg);
   strncpy(data, msg, data_len);
@@ -145,7 +135,7 @@ void send_TCP_spoof()
   tcph->tcph_syn = 1;
   tcph->tcph_ack = 0;
   tcph->tcph_win = htons(32767);
-  tcph->tcph_chksum = in_cksum((unsigned short *)pseudo, sizeof(struct pseudo) + sizeof(struct tcpheader));
+  tcph->tcph_chksum = in_cksum((unsigned short *)tcph, sizeof(struct tcpheader));
   tcph->tcph_urgptr = 0;
   tcph->tcph_hlen = 5;
   tcph->tcph_offset = 5;
@@ -153,11 +143,6 @@ void send_TCP_spoof()
   /*********************************************************
      Step 3: Fill in the IP header.
    ********************************************************/
-  pseudo->saddr = inet_addr("10.0.2.15");
-  pseudo->daddr = inet_addr("127.0.0.1");
-  pseudo->zero = 0;
-  pseudo->protocol = IPPROTO_TCP;
-  pseudo->length = htons(sizeof(struct tcpheader));
   ip->iph_ver = 4;
   ip->iph_ihl = 5;
   ip->iph_tos = 0;
