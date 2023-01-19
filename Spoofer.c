@@ -2,8 +2,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/socket.h> //Provides declarations for sockets
-#include <netinet/ip.h> //Provides declarations for ip header
+#include <sys/socket.h>  //Provides declarations for sockets
+#include <netinet/tcp.h> //Provides declarations for tcp header
+#include <netinet/ip.h>  //Provides declarations for ip header
 #include <net/ethernet.h>
 #include <time.h>
 #include <unistd.h>
@@ -16,7 +17,6 @@ typedef unsigned int u_int;
 typedef unsigned long u_long;
 
 unsigned short in_cksum(unsigned short *, int);
-unsigned short ip_checksum(unsigned short *, int);
 
 /* ICMP Header  */
 struct icmpheader
@@ -36,6 +36,24 @@ struct udpheader
   u_int16_t udp_ulen;  /* udp length */
   u_int16_t udp_sum;   /* udp checksum */
 };
+
+/* IP Header */
+struct ipheader
+{
+  unsigned char iph_ihl : 4,       // IP header length
+      iph_ver : 4;                 // IP version
+  unsigned char iph_tos;           // Type of service
+  unsigned short int iph_len;      // IP Packet length (data + header)
+  unsigned short int iph_ident;    // Identification
+  unsigned short int iph_flag : 3, // Fragmentation flags
+      iph_offset : 13;             // Flags offset
+  unsigned char iph_ttl;           // Time to Live
+  unsigned char iph_protocol;      // Protocol type
+  unsigned short int iph_chksum;   // IP datagram checksum
+  struct in_addr iph_sourceip;     // Source IP address
+  struct in_addr iph_destip;       // Destination IP address
+};
+
 
 struct tcpheader
 {
@@ -59,23 +77,6 @@ struct tcpheader
   unsigned short int tcph_win;
   unsigned short int tcph_chksum;
   unsigned short int tcph_urgptr;
-};
-
-/* IP Header */
-struct ipheader
-{
-  unsigned char iph_ihl : 4,       // IP header length
-      iph_ver : 4;                 // IP version
-  unsigned char iph_tos;           // Type of service
-  unsigned short int iph_len;      // IP Packet length (data + header)
-  unsigned short int iph_ident;    // Identification
-  unsigned short int iph_flag : 3, // Fragmentation flags
-      iph_offset : 13;             // Flags offset
-  unsigned char iph_ttl;           // Time to Live
-  unsigned char iph_protocol;      // Protocol type
-  unsigned short int iph_chksum;   // IP datagram checksum
-  struct in_addr iph_sourceip;     // Source IP address
-  struct in_addr iph_destip;       // Destination IP address
 };
 
 void send_raw_ip_packet(struct ipheader *ip)
@@ -188,8 +189,8 @@ void send_ICMP_spoof()
   ip->iph_ver = 4;
   ip->iph_ihl = 5;
   ip->iph_ttl = 20;
-  ip->iph_sourceip.s_addr = inet_addr("8.8.8.8");
-  ip->iph_destip.s_addr = inet_addr("127.0.0.1");
+  ip->iph_sourceip.s_addr = inet_addr("127.0.0.1");
+  ip->iph_destip.s_addr = inet_addr("10.9.0.1");
   ip->iph_protocol = IPPROTO_ICMP;
   ip->iph_len = htons(sizeof(struct ipheader) +
                       sizeof(struct icmpheader));

@@ -15,10 +15,10 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define FILTER "icmp and src 10.0.2.15"
+#define FILTER "icmp and src 192.168.1.227"// we want to spoof only the packets that are coming from the host.
 // #define FILTER "tcp portrange 9998-9999"
 // #define FILTER "tcp dst portrange 10-100"
-// #define FILTER "icmp"
+//#define FILTER "icmp"
 
 void got_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
 void print_icmp_packet(const u_char *, int);
@@ -26,7 +26,6 @@ void print_tcp_packet(const u_char *, int, const struct pcap_pkthdr *);
 void PrintData(const u_char *, int);
 unsigned short in_cksum(unsigned short *, int);
 
-FILE *logfile;
 struct sockaddr_in source, dest;
 int tcp = 0, others = 0, icmp = 0, total = 0;
 
@@ -125,15 +124,15 @@ void print_icmp_packet(const u_char *Buffer, int Size)
 
 	//////////////////////////* Network; IP Header *////////////////////////////
 	////////////////////////////////////////////////////////////////////////////
-	struct iphdr *iph = (struct iphdr *)(Buffer + sizeof(struct ethhdr));
+	struct iphdr *iph = (struct iphdr *)(Buffer + 14);
 	unsigned short iphdrlen = iph->ihl * 4;
 	memset(&source, 0, sizeof(source));
 	source.sin_addr.s_addr = iph->saddr;
 
 	memset(&dest, 0, sizeof(dest));
 	dest.sin_addr.s_addr = iph->daddr;
-	printf("src: %s\n", inet_ntoa(source.sin_addr));
-	printf("dst: %s\n", inet_ntoa(dest.sin_addr));
+	//printf("src: %s\n", inet_ntoa(source.sin_addr));
+	//printf("dst: %s\n", inet_ntoa(dest.sin_addr));
 
 	char buffer[1500];
 	memset(buffer, 0, 1500);
@@ -153,8 +152,69 @@ void print_icmp_packet(const u_char *Buffer, int Size)
 	/*********************************************************
 		Step 2: Fill in the IP header.
 	  ********************************************************/
-	printf("src: %s\n", inet_ntoa(source.sin_addr));
-	printf("dst: %s\n", inet_ntoa(dest.sin_addr));
+	//printf("src: %s\n", inet_ntoa(source.sin_addr));
+	//printf("dst: %s\n", inet_ntoa(dest.sin_addr));
+
+	struct ipheader *ip = (struct ipheader *)buffer;
+	ip->iph_ver = 4;
+	ip->iph_ihl = 5;
+	ip->iph_ttl = 20;
+	ip->iph_sourceip.s_addr = inet_addr(inet_ntoa(dest.sin_addr));
+	ip->iph_destip.s_addr = inet_addr(inet_ntoa(source.sin_addr));
+	ip->iph_protocol = IPPROTO_ICMP;
+	ip->iph_len = htons(sizeof(struct ipheader) +
+						sizeof(struct icmpheader));
+	struct sockaddr_in source2, dest2;
+	memset(&source, 0, sizeof(source2));
+	source2.sin_addr.s_addr = ip->iph_sourceip.s_addr;
+	
+	printf("ip src: %s\n", inet_ntoa(source2.sin_addr));
+
+	/*********************************************************
+	   Step 3: Finally, send the spoofed packet
+	 ********************************************************/
+	send_raw_ip_packet(ip);
+
+	return;
+}
+void print_icmp_packet_any(const u_char *Buffer, int Size)
+{
+	//////////////////////////* Link; Ethernet Header */////////////////////////
+	////////////////////////////////////////////////////////////////////////////
+	struct ethhdr *eth = (struct ethhdr *)Buffer;
+
+	//////////////////////////* Network; IP Header *////////////////////////////
+	////////////////////////////////////////////////////////////////////////////
+	struct iphdr *iph = (struct iphdr *)(Buffer + 16);
+	unsigned short iphdrlen = iph->ihl * 4;
+	memset(&source, 0, sizeof(source));
+	source.sin_addr.s_addr = iph->saddr;
+
+	memset(&dest, 0, sizeof(dest));
+	dest.sin_addr.s_addr = iph->daddr;
+	//printf("src: %s\n", inet_ntoa(source.sin_addr));
+	//printf("dst: %s\n", inet_ntoa(dest.sin_addr));
+
+	char buffer[1500];
+	memset(buffer, 0, 1500);
+
+	/*********************************************************
+	   Step 1: Fill in the ICMP header.
+	 ********************************************************/
+	struct icmpheader *icmp = (struct icmpheader *)(buffer + sizeof(struct ipheader)+2);
+	icmp->icmp_type = 0; // ICMP Type: 8 is request, 0 is reply.
+	icmp->icmp_code = 0; // Identifier (16 bits): some number to trace the response.
+	icmp->icmp_id = 18;	 // Sequence Number (16 bits): starts at 0
+	// Calculate the checksum for integrity
+	icmp->icmp_seq = 0;
+	icmp->icmp_chksum = 0;
+	icmp->icmp_chksum = in_cksum((unsigned short *)icmp, sizeof(struct icmpheader));
+
+	/*********************************************************
+		Step 2: Fill in the IP header.
+	  ********************************************************/
+	//printf("src: %s\n", inet_ntoa(source.sin_addr));
+	//printf("dst: %s\n", inet_ntoa(dest.sin_addr));
 
 	struct ipheader *ip = (struct ipheader *)buffer;
 	ip->iph_ver = 4;
@@ -192,6 +252,7 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 	case 0: // ICMP Protocol
 		++icmp;
 		print_icmp_packet(packet, size);
+
 		break;
 
 	case 1: // ICMP Protocol
@@ -199,9 +260,29 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 		print_icmp_packet(packet, size);
 		break;
 
-	case 6: // TCP Protocol
-		++tcp;
-		
+	default: // Some Other Protocol like ARP etc.
+		++others;
+		break;
+	}
+}
+void got_packet_any(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
+{
+	int size = header->len;
+
+	// Get the IP Header part of this packet , excluding the ethernet header
+	struct iphdr *iph = (struct iphdr *)(packet + sizeof(struct ethhdr));
+	total++;
+	switch (iph->protocol) // Check the Protocol and do accordingly...
+	{
+	case 0: // ICMP Protocol
+		++icmp;
+		print_icmp_packet_any(packet, size);
+
+		break;
+
+	case 1: // ICMP Protocol
+		++icmp;
+		print_icmp_packet_any(packet, size);
 		break;
 
 	default: // Some Other Protocol like ARP etc.
@@ -220,7 +301,6 @@ int main()
 	pcap_t *handle; // Handle of the device that shall be sniffed
 	char errbuf[100], *devname, devs[100][100];
 	int count = 1, n;
-
 	// First get the list of available devices
 	printf("Finding available devices ... ");
 	if (pcap_findalldevs(&alldevsp, errbuf))
@@ -229,7 +309,6 @@ int main()
 		return -1;
 	}
 	printf("Done");
-
 	// Print the available devices
 	printf("\nAvailable Devices are :\n");
 	for (device = alldevsp; device != NULL; device = device->next)
@@ -241,14 +320,11 @@ int main()
 		}
 		count++;
 	}
-
 	// Ask user which device to sniff
 	printf("Enter the number of the device you want to sniff : ");
 	scanf("%d", &n);
 	devname = devs[n];
-
 	printf("Device: %s\n", devname);
-
 	//  Step 1: Open live pcap session on NIC
 	handle = pcap_open_live(devname, BUFSIZ, 1, 1000, errbuf);
 	if (handle == NULL)
@@ -256,31 +332,26 @@ int main()
 		fprintf(stderr, "Couldn't open device: %s.\n", devname);
 		return (2);
 	}
-
 	// Step 2: Compile filter_exp into BPF psuedo-code
 	if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1)
 	{
 		fprintf(stderr, "Couldn't compile filter: %s.\n", filter_exp);
 		return (2);
 	}
-
 	if (pcap_setfilter(handle, &fp) == -1)
 	{
 		fprintf(stderr, "Couldn't set filter: %s.\n", filter_exp);
 		return (2);
 	}
-
-	logfile = fopen("log.txt", "w");
-	if (logfile == NULL)
+	if(strcmp(devname,"any")==0)
 	{
-		printf("Unable to create file.");
+	pcap_loop(handle, -1, got_packet_any, NULL);
 	}
-
-	// Step 3: Capture packets
-	pcap_loop(handle, -1, got_packet, NULL);
-
+	else 
+	{
+		pcap_loop(handle, -1, got_packet, NULL);
+	}
 	pcap_close(handle); // Close the handle
-	fclose(logfile);	// Close the logfile
 	return 0;
 }
 
