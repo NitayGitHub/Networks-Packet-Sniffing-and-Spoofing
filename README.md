@@ -18,3 +18,14 @@ Create a sniffer to sniff TCP packets. The format of each packet should be { sou
 ## **Task B**
 Write a spoofer for spoofing ICMP packets.
 The spoofer should fake the sender’s IP and have a valid response. Your code should be able to spoof other protocols with small changes.
+
+## **Task C**
+In this task, you will combine the sniffing and spoofing techniques to implement the following sniff-and-then-spoof program. You will use the local callback network and two processes as two separate machines. From machine A, you ping an IP X. This will generate an ICMP echo request packet. If X is alive, the ping program will receive an echo reply, and print out the response. Your sniff-and-then-spoof program runs on the attacker machine, which monitors the local callback network through packet sniffing. Whenever it sees an ICMP echo request, regardless of what the target IP address is, your program should immediately send out an echo reply using the packet spoofing technique.
+Please follow these steps: 
+a. First run – send a ping from Host A to Host B. 
+b. Second run – send a ping from Host A to a WAN IP (e.g., google DNS – 8.8.8.8). 
+c. Third run – send a ping from Host A to a fake IP. 
+
+## **Task D**
+In this task, you will implement the Gateway.c file.
+The program will take the name of a host on the command line and create a datagram socket for that host (using port number P+1). It will also create another datagram socket where it can receive datagrams from any host on port number P. Next, it enters an infinite loop in each iteration of which it receives a datagram from port P, then samples a random number using ((float)random())/((float)RAND_MAX) - if the number obtained is greater than 0.5, the datagram received is forwarded onto the outgoing socket to port P+1, otherwise the datagram is discarded and the process goes back to waiting for another incoming datagram. Note that this gateway will simulate an unreliable network that loses datagrams with a 50% probability.
